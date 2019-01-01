@@ -1,0 +1,112 @@
+---
+title: "Customer Lifetime Value"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Understanding clv
+
+### Purpose: RFM and CLV analysis of customer:  
+
+Goal 1: Segment the customer based on their purchase activity;  
+
+Goal 2: Identify which type of customer should be promoted to make profit;  
+
+Goal 3: Calculate the customer life time value  
+
+### Step 1: Load data and check the data structure  
+
+```{r dataLoad, message=FALSE}
+library(tidyverse)
+
+## read in data
+data_clv <- read_delim("C:/Users/akbar/Documents/Projects/Understanding_CLV/data/src/CDNOW_master.txt", delim = " ")
+
+## data prep
+data_prep <- data_clv %>%
+     rename(id = " customer_id",
+            date = " date",
+            num = number_of_cds,
+            amount = " dollar_value") %>%
+     mutate(date = as.Date(as.character(date), "%Y%m%d"),
+            id = as.numeric(id),
+            num = as.numeric(num),
+            amount = as.numeric(amount)) 
+
+## number of unique customers
+unique_cust <- data_prep %>%
+     filter(!duplicated(id)) %>%
+     .$id
+
+glimpse(data_prep)
+
+glimpse(unique_cust)
+```
+
+### Step 2: R,F,and M creation.
+  
+R(Recency): How recently did the customer purchase?  
+
+F(Frequency): How often do they purchase?  
+
+M(Monetary value): How much do they spend each time on average?
+
+```{r RFM_analysis}
+startDate <- min(data_prep$date)
+endDate <- as.Date("1998-01-01")
+
+## cutting data down to date ranges set above
+temp_1 <- data_prep %>%
+     arrange(desc(date)) %>%
+     filter(date >= startDate & date <= endDate)
+
+## making id a factor so that we can count the number of occurences
+temp <- temp_1 %>%
+     mutate(id = as.factor(id))
+
+temp_f <- temp_1 %>%
+  group_by(id) %>%
+  summarise(freq = count(id))
+  
+  as.data.frame(table(temp$id))%>%
+     mutate(id = as.numeric(Var1)) %>%
+     select(-Var1)
+
+## creating a temporary place holder for M
+temp_m <- temp_1 %>%
+     group_by(id) %>%
+     summarise(monetary = sum(amount))
+
+## creating R, F and final M, based on F
+temp_2 <- temp_1 %>%
+     filter(!duplicated(id)) %>%
+     left_join(temp_f) %>%
+     left_join(temp_m) %>%
+     mutate(recency = as.numeric(difftime(endDate, date, units = "days")),
+            frequency = Freq,
+            monetary = round(monetary/frequency, 2)) %>%
+     filter(monetary < 600) %>%
+     arrange(id)
+# %>%
+  # select(id, recency, frequency, monetary)
+
+glimpse(temp_2)
+```
+
+### Step 3: RFM rate
+
+```{r rfm_rate}
+## Creating the rates for R, F, M and combined RFM value
+temp_fin <- temp_2 %>%
+     mutate(rec_rate = as.numeric(cut(-temp_2$recency, 5)),
+            frq_rate = as.numeric(cut(temp_2$frequency, 5)),
+            mon_rate = as.numeric(cut(temp_2$monetary, 5))) %>%
+     select(id, recency, frequency, monetary, rec_rate, frq_rate, mon_rate) %>%
+     mutate(rfm_score = as.numeric(paste0(rec_rate, frq_rate, mon_rate)))
+
+
+```
+
