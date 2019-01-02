@@ -399,7 +399,7 @@ data_prep &lt;- data_clv %&gt;%
             num = as.numeric(num),
             amount = as.numeric(amount)) 
 
-
+## number of unique customers
 unique_cust &lt;- data_prep %&gt;%
      filter(!duplicated(id)) %&gt;%
      .$id
@@ -414,44 +414,61 @@ glimpse(data_prep)</code></pre>
 <pre class="r"><code>glimpse(unique_cust)</code></pre>
 <pre><code>##  num [1:23570] 1 2 3 4 5 6 7 8 9 10 ...</code></pre>
 </div>
-<div id="step-2-rfand-m-analysis." class="section level3">
-<h3>Step 2: R,F,and M analysis.</h3>
+<div id="step-2-rfand-m-creation." class="section level3">
+<h3>Step 2: R,F,and M creation.</h3>
 <p>R(Recency): How recently did the customer purchase?</p>
 <p>F(Frequency): How often do they purchase?</p>
 <p>M(Monetary value): How much do they spend each time on average?</p>
 <pre class="r"><code>startDate &lt;- min(data_prep$date)
 endDate &lt;- as.Date(&quot;1998-01-01&quot;)
 
+## cutting data down to date ranges set above
 temp_1 &lt;- data_prep %&gt;%
      arrange(desc(date)) %&gt;%
      filter(date &gt;= startDate &amp; date &lt;= endDate)
 
+## making id a factor so that we can count the number of occurences
 temp &lt;- temp_1 %&gt;%
      mutate(id = as.factor(id))
 
-temp_f &lt;- as.data.frame(table(temp$id))
+temp_f &lt;- temp_1 %&gt;%
+  group_by(id) %&gt;%
+  summarise(frequency = n())
 
+## creating a temporary place holder for M
 temp_m &lt;- temp_1 %&gt;%
      group_by(id) %&gt;%
      summarise(monetary = sum(amount))
 
+## creating R, F and final M, based on F
 temp_2 &lt;- temp_1 %&gt;%
      filter(!duplicated(id)) %&gt;%
+     left_join(temp_f) %&gt;%
+     left_join(temp_m) %&gt;%
      mutate(recency = as.numeric(difftime(endDate, date, units = &quot;days&quot;)),
-            frequency = temp_f$Freq,
-            monetary = round(temp_m$monetary/frequency, 2)) %&gt;%
-     arrange(desc(id))
-
-glimpse(temp_2)</code></pre>
-<pre><code>## Observations: 23,570
-## Variables: 7
-## $ id        &lt;dbl&gt; 23570, 23569, 23568, 23567, 23566, 23565, 23564, 235...
-## $ date      &lt;date&gt; 1997-03-26, 1997-03-25, 1997-04-22, 1997-03-25, 199...
-## $ num       &lt;dbl&gt; 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 3, 2, 1, 3, 2, 1, 4...
-## $ amount    &lt;dbl&gt; 42.96, 25.74, 14.99, 20.97, 36.00, 11.77, 46.47, 47....
-## $ recency   &lt;dbl&gt; 281, 282, 254, 282, 282, 282, 32, 89, 282, 282, 282,...
-## $ frequency &lt;int&gt; 2, 2, 1, 4, 3, 2, 1, 3, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2...
-## $ monetary  &lt;dbl&gt; 12.57, 40.91, 59.84, 24.11, 18.75, 14.96, 13.97, 26....</code></pre>
+            monetary = round(monetary/frequency, 2)) %&gt;%
+     filter(monetary &lt; 600 &amp; monetary &gt; 0) %&gt;%
+     arrange(id) %&gt;%
+     select(id, recency, frequency, monetary)</code></pre>
+<pre><code>## Joining, by = &quot;id&quot;
+## Joining, by = &quot;id&quot;</code></pre>
+<pre class="r"><code>glimpse(temp_2)</code></pre>
+<pre><code>## Observations: 23,501
+## Variables: 4
+## $ id        &lt;dbl&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 1...
+## $ recency   &lt;dbl&gt; 365, 354, 37, 20, 20, 365, 82, 7, 233, 345, 290, 365...
+## $ frequency &lt;int&gt; 1, 2, 5, 4, 10, 1, 2, 7, 2, 1, 3, 1, 1, 1, 1, 4, 1, ...
+## $ monetary  &lt;dbl&gt; 11.77, 44.50, 27.89, 25.12, 34.81, 20.99, 63.09, 24....</code></pre>
+</div>
+<div id="step-3-rfm-rate" class="section level3">
+<h3>Step 3: RFM rate</h3>
+<pre class="r"><code>## Creating the rates for R, F, M and combined RFM value
+temp_fin &lt;- temp_2 %&gt;%
+     mutate(rec_rate = as.numeric(cut(-temp_2$recency, 9)),
+            frq_rate = as.numeric(cut(temp_2$frequency, 9)),
+            mon_rate = as.numeric(cut_interval(temp_2$monetary, 9))) %&gt;%
+     select(id, rec_rate, frq_rate, mon_rate) %&gt;%
+     mutate(rfm_score = as.numeric(paste0(rec_rate, frq_rate, mon_rate)))</code></pre>
 </div>
 </div>
 

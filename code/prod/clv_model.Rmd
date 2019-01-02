@@ -1,11 +1,16 @@
 ---
-title: "Customer Lifetime Value"
+title: "Customer Lifetime Value (CLV)"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Background
+
+I have been recently a lot about customer lifetime value and trying to understand the business decisions and math that drive it. To that end, I have found a lot of tutorials that try to explain it, but in order to learn for myself, I need to code and do the calculations. 
+
 
 # Understanding clv
 
@@ -21,6 +26,7 @@ Goal 3: Calculate the customer life time value
 
 ```{r dataLoad, message=FALSE}
 library(tidyverse)
+library(gridExtra)
 
 ## read in data
 data_clv <- read_delim("C:/Users/akbar/Documents/Projects/Understanding_CLV/data/src/CDNOW_master.txt", delim = " ")
@@ -83,10 +89,9 @@ temp_2 <- temp_1 %>%
      left_join(temp_m) %>%
      mutate(recency = as.numeric(difftime(endDate, date, units = "days")),
             monetary = round(monetary/frequency, 2)) %>%
-     filter(monetary < 600 & monetary > 0) %>%
-     arrange(id)
-# %>%
-  # select(id, recency, frequency, monetary)
+     filter(monetary < 600) %>%
+     arrange(id) %>%
+     select(id, recency, frequency, monetary)
 
 glimpse(temp_2)
 ```
@@ -96,12 +101,17 @@ glimpse(temp_2)
 ```{r rfm_rate}
 ## Creating the rates for R, F, M and combined RFM value
 temp_fin <- temp_2 %>%
-     mutate(rec_rate = as.numeric(cut(-temp_2$recency, 5)),
-            frq_rate = as.numeric(cut(temp_2$frequency, 5)),
-            mon_rate = as.numeric(cut_interval(temp_2$monetary, 5))) %>%
+     mutate(rec_rate = as.numeric(cut_interval(recency, 5)),
+            frq_rate = as.numeric(cut_interval(frequency, 5)),
+            mon_rate = as.numeric(cut_interval(monetary, 5))) %>%
      select(id, recency, frequency, monetary, rec_rate, frq_rate, mon_rate) %>%
      mutate(rfm_score = as.numeric(paste0(rec_rate, frq_rate, mon_rate)))
 
+```
+
+### https://www.r-bloggers.com/rfm-customer-analysis-with-r-language/
+
+```{r}
 
 ```
 
